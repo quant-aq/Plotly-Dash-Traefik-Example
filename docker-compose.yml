@@ -1,0 +1,52 @@
+version: "3.3"
+
+services:
+  proxy:
+    image: traefik:v2.3
+    command:
+      --api=true
+      --api.insecure=true
+      --api.dashboard=true
+      --entryPoints.web.address=:80
+      --providers.docker
+      --providers.docker.watch=true
+      --providers.docker.swarmMode=true
+      --log.level=DEBUG
+      --ping.entrypoint=web
+    ports:
+      - 80:80
+      - 8080:8080
+    networks:
+      - dash-net
+    depends_on:
+      - dash
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      labels:
+        - traefik.enable=false
+      placement:
+        constraints:
+          - node.role == manager
+  
+  dash:
+    image: quant-aq/plotly-dash-traefik-example
+    build: .
+    networks:
+      - dash-net
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=dash-net
+        - traefik.http.routers.dash.rule=Host(`localhost`)
+        - traefik.http.services.dash.loadbalancer.server.port=8000
+
+networks:
+  dash-net:
+    external: true
